@@ -1,0 +1,404 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap');
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #ffffff;
+  --color-text: #201f1d;
+  --color-divider: color-mix(in srgb, #201f1d 16%, transparent);
+
+  --color-accent: #b68235;
+  --color-accent-2: #ac803e;
+  --color-accent-100: #fff3e4;
+  --color-accent-200: #ffe3bf;
+  --color-accent-300: #facb8d;
+  --color-accent-400: #e1ad66;
+  --color-accent-500: #c28d41;
+  --color-accent-600: #a06f24;
+  --color-accent-700: #7d5411;
+  --color-accent-800: #5a3b0a;
+  --color-accent-900: #3a270d;
+
+  --font-heading: 'Cormorant Garamond', system-ui, sans-serif;
+  --font-body: 'Lora', system-ui, sans-serif;
+
+  --space-1: 4.6px;
+  --space-2: 9.2px;
+  --space-3: 13.8px;
+  --space-4: 18.4px;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: #e4e1db;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-2);
+}
+p {
+  margin: 0 0 var(--space-3);
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ── app shell — mobile full-bleed, centered phone card on wide screens ── */
+.qn-shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+@media (min-width: 560px) {
+  .qn-shell {
+    padding: 40px 16px;
+  }
+}
+.qn-app {
+  width: 100%;
+  max-width: 430px;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  position: relative;
+  overflow: hidden;
+}
+@media (min-width: 560px) {
+  .qn-app {
+    height: 874px;
+    max-height: 90dvh;
+    border-radius: 44px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.qn-content-scrim {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── ambient background: soft drifting motes, purely decorative ── */
+.qn-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.qn-mote {
+  position: absolute;
+  bottom: -24px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 80%, #fff) 0%, transparent 72%);
+  opacity: 0;
+  filter: blur(0.3px);
+  animation: qn-float 24s ease-in infinite;
+  animation-fill-mode: backwards;
+}
+@keyframes qn-float {
+  0% {
+    transform: translate(0, 0) scale(0.75);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(var(--qn-drift, 16px), -55vh) scale(1);
+  }
+  88% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(calc(var(--qn-drift, 16px) * -1), -112vh) scale(0.6);
+    opacity: 0;
+  }
+}
+.qn-mote:nth-child(1) {
+  left: 9%;
+  width: 6px;
+  height: 6px;
+  animation-duration: 23s;
+  animation-delay: -2s;
+  --qn-drift: 18px;
+}
+.qn-mote:nth-child(2) {
+  left: 24%;
+  width: 9px;
+  height: 9px;
+  animation-duration: 29s;
+  animation-delay: -11s;
+  --qn-drift: -22px;
+}
+.qn-mote:nth-child(3) {
+  left: 41%;
+  width: 5px;
+  height: 5px;
+  animation-duration: 19s;
+  animation-delay: -6s;
+  --qn-drift: 13px;
+}
+.qn-mote:nth-child(4) {
+  left: 59%;
+  width: 8px;
+  height: 8px;
+  animation-duration: 27s;
+  animation-delay: -16s;
+  --qn-drift: -17px;
+}
+.qn-mote:nth-child(5) {
+  left: 76%;
+  width: 6px;
+  height: 6px;
+  animation-duration: 21s;
+  animation-delay: -8s;
+  --qn-drift: 20px;
+}
+.qn-mote:nth-child(6) {
+  left: 90%;
+  width: 7px;
+  height: 7px;
+  animation-duration: 32s;
+  animation-delay: -20s;
+  --qn-drift: -12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qn-mote {
+    animation: none;
+    display: none;
+  }
+}
+
+/* ── wordmark (home screen only) ── */
+.qn-wordmark {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-accent);
+  margin-bottom: 4px;
+}
+
+/* ── buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 11px 18px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s ease;
+}
+.btn svg {
+  display: block;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: transparent;
+}
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.btn-secondary {
+  border-color: var(--color-divider);
+  background: #fff;
+}
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex: none;
+}
+.btn-block {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* ── forms ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: #fff;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.input:hover {
+  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
+}
+textarea.input {
+  resize: vertical;
+}
+
+/* ── cards ── */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: #fff;
+  border: 1px solid var(--color-divider);
+}
+.card-kicker {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+}
+.card-body {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+/* ── tags ── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+.tag-accent {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.tag-outline {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent-700);
+}
+
+/* ── selectable option rows (questions, section cards, toggle pills) ── */
+.qn-opt {
+  background: #fff;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.qn-opt:hover {
+  background: var(--color-accent-100);
+  border-color: var(--color-accent) !important;
+}
+.qn-opt.is-selected {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+  border-color: var(--color-accent) !important;
+}
+
+/* ── tab bar ── */
+.qn-tab {
+  transition: color 0.15s ease;
+}
+.qn-tab:hover {
+  color: var(--color-accent-700);
+}
+
+/* ── dialog ── */
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, #2d2b2b 45%, transparent);
+  z-index: 20;
+}
+.dialog {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 20px;
+}
+.dialog-body {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.text-muted {
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}

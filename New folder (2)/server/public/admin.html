@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Qanotim — Admin</title>
+<style>
+  :root {
+    --accent: #b68235;
+    --accent-dark: #7d5411;
+    --bg: #f3f2f2;
+    --divider: #d9d6d2;
+    --text: #201f1d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  .sub {
+    font-size: 13px;
+    opacity: 0.6;
+    margin-bottom: 24px;
+  }
+
+  /* — login — */
+  #login {
+    max-width: 320px;
+    margin: 80px auto;
+    text-align: center;
+  }
+  #login input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  #login button, .btn {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    background: #fff;
+    border: 1.5px solid var(--accent);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  #login button:hover, .btn:hover { background: #fff7ec; }
+  #loginError {
+    color: #b3261e;
+    font-size: 12.5px;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+
+  /* — app — */
+  #app { display: none; }
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .toolbar input[type="search"] {
+    flex: 1;
+    min-width: 180px;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+  }
+  .toolbar select {
+    padding: 8px 12px;
+    font-size: 13.5px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--divider);
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--divider);
+  }
+  th {
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    background: #faf9f7;
+  }
+  tr:last-child td { border-bottom: none; }
+  .status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .status.active { background: #e6f4e6; color: #1e6b1e; }
+  .status.expired { background: #fbe9e7; color: #a02c1e; }
+  .status.blocked { background: #fbe9e7; color: #a02c1e; }
+  .grant-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    background: #fff;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .grant-btn:hover { background: #fff7ec; }
+  .grant-btn:disabled { opacity: 0.5; cursor: default; }
+  .block-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-left: 6px;
+  }
+  .block-btn.block { color: #a02c1e; border: 1px solid #d98a7c; }
+  .block-btn.block:hover { background: #fdf1ef; }
+  .block-btn.unblock { color: #1e6b1e; border: 1px solid #8fc79a; }
+  .block-btn.unblock:hover { background: #eff8f0; }
+  .block-btn:disabled { opacity: 0.5; cursor: default; }
+  .empty { padding: 30px; text-align: center; opacity: 0.55; font-size: 13px; }
+  .muted { opacity: 0.5; font-size: 11.5px; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>Qanotim — Admin</h1>
+  <div class="sub">Foydalanuvchilar ro'yxati va obunalarni boshqarish</div>
+  <input id="pw" type="password" placeholder="Parol" autofocus />
+  <button id="loginBtn">Kirish</button>
+  <div id="loginError"></div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <h1>Foydalanuvchilar</h1>
+    <div class="sub" id="countLabel"></div>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Ism yoki email bo'yicha qidirish..." />
+      <select id="filter">
+        <option value="all">Hammasi</option>
+        <option value="active">Faqat faol</option>
+        <option value="expired">Faqat muddati tugagan</option>
+      </select>
+    </div>
+
+    <div id="tableHolder"></div>
+  </div>
+</div>
+
+<script>
+  const PW_KEY = 'qanotim_admin_pw';
+  let users = [];
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('uz-Latn', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  async function api(path, opts) {
+    const pw = sessionStorage.getItem(PW_KEY) || '';
+    const res = await fetch('/api/admin' + path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Password': pw, ...(opts && opts.headers) },
+    });
+    if (res.status === 401) {
+      sessionStorage.removeItem(PW_KEY);
+      showLogin('Parol noto\'g\'ri.');
+      throw new Error('unauthorized');
+    }
+    if (!res.ok) throw new Error('request_failed');
+    return res.json();
+  }
+
+  function showLogin(err) {
+    document.getElementById('login').style.display = 'block';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('loginError').textContent = err || '';
+  }
+  function showApp() {
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  }
+
+  async function tryLogin(pw) {
+    sessionStorage.setItem(PW_KEY, pw);
+    try {
+      await loadUsers();
+      showApp();
+    } catch (e) {
+      if (e.message !== 'unauthorized') showLogin('Xatolik yuz berdi, qayta urinib ko\'ring.');
+    }
+  }
+
+  document.getElementById('loginBtn').addEventListener('click', () => {
+    const pw = document.getElementById('pw').value;
+    if (pw) tryLogin(pw);
+  });
+  document.getElementById('pw').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+
+  async function loadUsers() {
+    const data = await api('/users');
+    users = data.users;
+    render();
+  }
+
+  async function grantMonth(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      await api('/users/' + id + '/subscription', { method: 'PATCH', body: JSON.stringify({ months: 1 }) });
+      await loadUsers();
+    } catch {
+      btn.disabled = false;
+      btn.textContent = '+1 oy';
+    }
+  }
+
+  async function toggleBlock(id, nextBlocked, btn) {
+    btn.disabled = true;
+    try {
+      await api('/users/' + id + '/block', { method: 'PATCH', body: JSON.stringify({ blocked: nextBlocked }) });
+      await loadUsers();
+    } catch {
+      btn.disabled = false;
+    }
+  }
+
+  function render() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const filter = document.getElementById('filter').value;
+    const filtered = users.filter((u) => {
+      if (filter === 'active' && !u.active) return false;
+      if (filter === 'expired' && u.active) return false;
+      if (q && !((u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+
+    document.getElementById('countLabel').textContent = `${filtered.length} / ${users.length} foydalanuvchi`;
+
+    const holder = document.getElementById('tableHolder');
+    if (!filtered.length) {
+      holder.innerHTML = '<div class="empty">Hech kim topilmadi.</div>';
+      return;
+    }
+
+    const rows = filtered
+      .map(
+        (u) => `
+      <tr>
+        <td>${escapeHtml(u.name)}</td>
+        <td>${escapeHtml(u.email || '—')}<div class="muted">${u.lang.toUpperCase()}</div></td>
+        <td>${fmtDate(u.subscriptionEnd)}<div class="muted"><span class="status ${u.active ? 'active' : 'expired'}">${u.active ? 'Faol' : 'Tugagan'}</span>${u.blocked ? ' <span class="status blocked">Bloklangan</span>' : ''}</div></td>
+        <td>${u.goalsCount}</td>
+        <td>${u.coachingSessionsCount}</td>
+        <td style="white-space:nowrap">
+          <button class="grant-btn" data-id="${u.id}">+1 oy</button>
+          <button class="block-btn ${u.blocked ? 'unblock' : 'block'}" data-id="${u.id}" data-blocked="${u.blocked ? '0' : '1'}">${u.blocked ? 'Blokdan chiqarish' : 'Bloklash'}</button>
+        </td>
+      </tr>`
+      )
+      .join('');
+
+    holder.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Ism</th><th>Email / Til</th><th>Obuna</th><th>Maqsadlar</th><th>Coaching</th><th></th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    holder.querySelectorAll('.grant-btn').forEach((btn) => {
+      btn.addEventListener('click', () => grantMonth(btn.dataset.id, btn));
+    });
+    holder.querySelectorAll('.block-btn').forEach((btn) => {
+      btn.addEventListener('click', () => toggleBlock(btn.dataset.id, btn.dataset.blocked === '1', btn));
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  document.getElementById('search').addEventListener('input', render);
+  document.getElementById('filter').addEventListener('change', render);
+
+  const savedPw = sessionStorage.getItem(PW_KEY);
+  if (savedPw) tryLogin(savedPw);
+  else showLogin();
+</script>
+</body>
+</html>
