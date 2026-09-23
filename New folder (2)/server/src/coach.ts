@@ -1,4 +1,4 @@
-import { GoogleGenAI, createPartFromText, type Content } from '@google/genai';
+import { GoogleGenAI, type Content } from '@google/genai';
 import type { Analysis } from './routes/coaching.js';
 
 let client: GoogleGenAI | null = null;
@@ -100,40 +100,4 @@ export async function generateCoachReply(opts: {
     return chat.sendMessage({ message: latestMessage });
   });
   return (result.text ?? '').trim();
-}
-
-const UNIT_NAME: Record<string, { uz: string; ru: string }> = {
-  haftalik: { uz: 'kun', ru: 'день' },
-  oylik: { uz: 'kun', ru: 'день' },
-  yillik: { uz: 'oy', ru: 'месяц' },
-};
-
-// Breaks a haftalik/oylik/yillik goal into `count` concrete daily (or
-// monthly, for yillik) action steps, so the recurring goal shows a real
-// plan instead of the same generic text repeated every day.
-export async function generateGoalPlan(text: string, duration: string, count: number, lang: string): Promise<string[]> {
-  const ai = getClient();
-  const unit = (UNIT_NAME[duration] ?? UNIT_NAME.haftalik)[lang === 'ru' ? 'ru' : 'uz'];
-  const prompt =
-    lang === 'ru'
-      ? `Пользователь поставил цель: "${text}". Разбей её ровно на ${count} шагов (по одному на каждый ${unit}) и для каждого шага напиши одно короткое, конкретное, выполнимое действие (одно предложение, в повелительной форме). Ответь ТОЛЬКО JSON-массивом из ${count} строк, без markdown и пояснений: ["шаг 1", "шаг 2", ...].`
-      : `Foydalanuvchi shu maqsadni qo'ydi: "${text}". Buni aynan ${count} ta bosqichga (har bir ${unit} uchun bittadan) bo'l va har bir bosqich uchun qisqa, aniq, bajarilishi mumkin bo'lgan bitta amaliy harakat yoz (bitta jumla, buyruq shaklida). FAQAT ${count} ta matndan iborat JSON massiv qaytar, markdown yoki izohsiz: ["1-bosqich", "2-bosqich", ...].`;
-  const result = await withRetry(() =>
-    ai.models.generateContent({
-      model: MODEL,
-      contents: [createPartFromText(prompt)],
-    })
-  );
-  const raw = (result.text ?? '').trim();
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error('plan_not_json');
-  const parsed: unknown = JSON.parse(jsonMatch[0]);
-  if (!Array.isArray(parsed) || !parsed.every((x) => typeof x === 'string')) {
-    throw new Error('plan_invalid_shape');
-  }
-  const steps = parsed as string[];
-  if (steps.length === count) return steps;
-  if (steps.length > count) return steps.slice(0, count);
-  // fewer steps than asked for — pad by repeating the last one rather than failing outright
-  return [...steps, ...Array(count - steps.length).fill(steps[steps.length - 1] ?? text)];
 }
