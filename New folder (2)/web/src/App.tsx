@@ -170,7 +170,6 @@ export default function App() {
               lang={user.lang}
               goals={goals}
               goalsDoneN={goalsDoneN}
-              weekly={weekly}
               onBack={() => setScreen('home')}
               onGoalsChanged={() => {
                 refreshGoals();
