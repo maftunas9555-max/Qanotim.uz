@@ -123,12 +123,22 @@ textarea {
   left: 0;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 80%, #fff) 0%, transparent 72%);
   opacity: 0;
   filter: blur(0.3px);
   animation: qn-float 24s ease-in infinite;
   animation-fill-mode: backwards;
+}
+.qn-mote-circle {
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 80%, #fff) 0%, transparent 72%);
+}
+.qn-mote-square {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+.qn-mote-triangle {
+  background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
 @keyframes qn-float {
   0% {
@@ -196,6 +206,30 @@ textarea {
   animation-duration: 32s;
   animation-delay: -20s;
   --qn-drift: -12px;
+}
+.qn-mote:nth-child(7) {
+  left: 16%;
+  width: 8px;
+  height: 8px;
+  animation-duration: 26s;
+  animation-delay: -14s;
+  --qn-drift: -15px;
+}
+.qn-mote:nth-child(8) {
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  animation-duration: 22s;
+  animation-delay: -4s;
+  --qn-drift: 19px;
+}
+.qn-mote:nth-child(9) {
+  left: 83%;
+  width: 9px;
+  height: 9px;
+  animation-duration: 30s;
+  animation-delay: -24s;
+  --qn-drift: -14px;
 }
 @media (prefers-reduced-motion: reduce) {
   .qn-mote {
