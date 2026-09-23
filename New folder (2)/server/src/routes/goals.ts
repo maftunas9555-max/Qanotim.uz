@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
-import { requireAuth, getSessionUser } from '../auth.js';
-import { generateGoalPlan } from '../coach.js';
-import { asyncHandler } from '../asyncHandler.js';
+import { requireAuth } from '../auth.js';
 
 export const goalsRouter = Router();
 goalsRouter.use(requireAuth);
@@ -153,29 +151,9 @@ goalsRouter.post('/', (req, res) => {
   res.status(201).json({ goal: serialize(goal) });
 });
 
-// Generates the day-by-day breakdown shown as a preview before a
-// haftalik/oylik/yillik goal is actually split into a recurring daily goal.
-goalsRouter.post(
-  '/plan',
-  asyncHandler(async (req, res) => {
-    const { text, duration } = req.body ?? {};
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({ error: 'text_required' });
-    }
-    if (!SPLIT[duration]) {
-      return res.status(400).json({ error: 'invalid_duration' });
-    }
-    const user = getSessionUser(req.userId!)!;
-    try {
-      const plan = await generateGoalPlan(text.trim(), duration, SPLIT[duration].count, user.lang);
-      res.json({ plan });
-    } catch (err) {
-      res.status(502).json({ error: 'plan_unavailable', message: (err as Error).message });
-    }
-  })
-);
-
 // "+" FAB modal on Maqsad: haftalik/oylik/yillik goal, optionally auto-split into a daily recurring goal.
+// When split, `plan` is the array of per-day texts the user typed herself (one slot per day/month) —
+// there's no AI generation here, each slot is just an independently editable entry (see currentStepText).
 goalsRouter.post('/recurring', (req, res) => {
   const { text, duration, split, plan } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
