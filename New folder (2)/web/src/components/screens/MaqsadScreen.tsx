@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Strings, Lang } from '../../i18n';
 import { Goal, api } from '../../api';
-import { WeekDay } from '../../App';
 import { BackHeader } from '../BackHeader';
 import { formatLongDateWithWeekday } from '../../dateFmt';
 
-type ModalStep = 'form' | 'confirm' | 'generating' | 'plan';
+type ModalStep = 'form' | 'confirm' | 'bulk';
 
 interface HistoryItem {
   id: string;
@@ -14,11 +13,11 @@ interface HistoryItem {
 }
 
 const DURATIONS = ['haftalik', 'oylik', 'yillik'] as const;
+const SPLIT_COUNT: Record<(typeof DURATIONS)[number], number> = { haftalik: 7, oylik: 30, yillik: 12 };
 
-function dayLabel(dateIso: string, t: Strings) {
-  const jsDay = new Date(dateIso).getDay(); // 0=Sun..6=Sat
-  const mondayFirst = (jsDay + 6) % 7; // 0=Mon..6=Sun
-  return t.weekdays[mondayFirst];
+const COUNTER_RE = / \(\d+\/\d+\)$/;
+function stripCounter(g: Goal): string {
+  return g.recurring ? g.text.replace(COUNTER_RE, '') : g.text;
 }
 
 function todayKey() {
@@ -36,7 +35,6 @@ export function MaqsadScreen({
   lang,
   goals,
   goalsDoneN,
-  weekly,
   onBack,
   onGoalsChanged,
 }: {
@@ -44,7 +42,6 @@ export function MaqsadScreen({
   lang: Lang;
   goals: Goal[];
   goalsDoneN: number;
-  weekly: WeekDay[];
   onBack: () => void;
   onGoalsChanged: () => void;
 }) {
@@ -55,8 +52,10 @@ export function MaqsadScreen({
   const [modalStep, setModalStep] = useState<ModalStep>('form');
   const [modalDraft, setModalDraft] = useState('');
   const [modalDuration, setModalDuration] = useState<(typeof DURATIONS)[number]>('haftalik');
-  const [plan, setPlan] = useState<string[] | null>(null);
-  const [planError, setPlanError] = useState<string | null>(null);
+  const [bulkPlan, setBulkPlan] = useState<string[]>([]);
+
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalEditText, setGoalEditText] = useState('');
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyDate, setHistoryDate] = useState('');
@@ -87,34 +86,36 @@ export function MaqsadScreen({
     onGoalsChanged();
   }
 
+  function startGoalEdit(g: Goal) {
+    setEditingGoalId(g.id);
+    setGoalEditText(stripCounter(g));
+  }
+
+  async function commitGoalEdit(g: Goal) {
+    const text = goalEditText.trim();
+    setEditingGoalId(null);
+    if (!text || text === stripCounter(g)) return;
+    await api.patch(`/goals/history/${todayKey()}/${g.id}`, { text });
+    onGoalsChanged();
+  }
+
   function openModal() {
     setShowModal(true);
     setModalStep('form');
     setModalDraft('');
     setModalDuration('haftalik');
-    setPlan(null);
-    setPlanError(null);
+    setBulkPlan([]);
   }
 
-  async function acceptSplit() {
-    setModalStep('generating');
-    setPlanError(null);
-    try {
-      const { plan: generated } = await api.post<{ plan: string[] }>('/goals/plan', {
-        text: modalDraft.trim(),
-        duration: modalDuration,
-      });
-      setPlan(generated);
-      setModalStep('plan');
-    } catch {
-      setPlanError(t.planFailed);
-      setModalStep('confirm');
-    }
+  function goToBulk() {
+    setBulkPlan(Array(SPLIT_COUNT[modalDuration]).fill(''));
+    setModalStep('bulk');
   }
 
-  async function confirmPlan() {
+  async function confirmBulk() {
     setBusy(true);
     try {
+      const plan = bulkPlan.map((s) => s.trim() || modalDraft.trim());
       await api.post('/goals/recurring', { text: modalDraft.trim(), duration: modalDuration, split: true, plan });
       onGoalsChanged();
       setShowModal(false);
@@ -188,7 +189,31 @@ export function MaqsadScreen({
 
   return (
     <div style={{ position: 'relative' }}>
-      <BackHeader t={t} onBack={onBack} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <BackHeader t={t} onBack={onBack} />
+        <div
+          onClick={() => openHistory()}
+          aria-label={t.historyTitle}
+          title={t.historyTitle}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            border: '1px solid var(--color-divider)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flex: 'none',
+            color: 'var(--color-accent-700)',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3.5 2" />
+          </svg>
+        </div>
+      </div>
       <h2 style={{ fontSize: 22, marginBottom: 2 }}>{t.todayGoal}</h2>
       <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 14 }}>{t.today}</div>
 
@@ -223,10 +248,9 @@ export function MaqsadScreen({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 22 }}>
-        {goals.map((g) => (
+        {goals.map((g, i) => (
           <div
             key={g.id}
-            onClick={() => toggleGoal(g.id)}
             className={`qn-opt${g.done ? ' is-selected' : ''}`}
             style={{
               display: 'flex',
@@ -235,10 +259,11 @@ export function MaqsadScreen({
               border: '1px solid var(--color-divider)',
               borderRadius: 'var(--radius-md)',
               padding: '10px 12px',
-              cursor: 'pointer',
             }}
           >
+            <span style={{ fontSize: 12, opacity: 0.5, flex: 'none', minWidth: 14 }}>{i + 1}.</span>
             <span
+              onClick={() => toggleGoal(g.id)}
               style={{
                 width: 18,
                 height: 18,
@@ -248,6 +273,7 @@ export function MaqsadScreen({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flex: 'none',
+                cursor: 'pointer',
                 background: g.done ? 'var(--color-accent)' : 'transparent',
               }}
             >
@@ -257,13 +283,29 @@ export function MaqsadScreen({
                 </svg>
               )}
             </span>
-            <span style={{ fontSize: 13.5, flex: 1, textDecoration: g.done ? 'line-through' : 'none' }}>{g.text}</span>
-            <span style={{ fontSize: 9.5, color: 'color-mix(in srgb, var(--color-text) 45%, transparent)' }}>{g.source}</span>
+            {editingGoalId === g.id ? (
+              <input
+                autoFocus
+                className="input"
+                style={{ flex: 1, fontSize: 13, padding: '5px 8px' }}
+                value={goalEditText}
+                onChange={(e) => setGoalEditText(e.target.value)}
+                onBlur={() => commitGoalEdit(g)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  if (e.key === 'Escape') setEditingGoalId(null);
+                }}
+              />
+            ) : (
+              <span
+                onClick={() => startGoalEdit(g)}
+                style={{ fontSize: 13.5, flex: 1, cursor: 'text', textDecoration: g.done ? 'line-through' : 'none' }}
+              >
+                {g.text}
+              </span>
+            )}
             <span
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteGoal(g.id);
-              }}
+              onClick={() => deleteGoal(g.id)}
               aria-label={t.deleteGoal}
               style={{
                 width: 22,
@@ -299,49 +341,9 @@ export function MaqsadScreen({
           style={{ minHeight: 60, resize: 'vertical' }}
         />
       </div>
-      <button type="button" onClick={addGoal} disabled={!draft.trim() || busy} className="btn btn-primary btn-block" style={{ marginBottom: 22 }}>
+      <button type="button" onClick={addGoal} disabled={!draft.trim() || busy} className="btn btn-primary btn-block">
         {t.addToList}
       </button>
-
-      <button type="button" onClick={() => openHistory()} className="btn btn-secondary btn-block">
-        {t.historyTitle}
-      </button>
-
-      <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.55, margin: '22px 0 8px' }}>{t.historyTitle}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {weekly.map((wb) => (
-          <div
-            key={wb.date}
-            onClick={() => openHistory(wb.date)}
-            className="qn-opt"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              border: '1px solid var(--color-divider)',
-              borderRadius: 'var(--radius-md)',
-              padding: '9px 12px',
-              opacity: wb.isToday ? 1 : 0.85,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 11.5, fontWeight: wb.isToday ? 600 : 400, width: 34, flex: 'none' }}>{dayLabel(wb.date, t)}</span>
-            <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--color-divider)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${wb.pct}%`,
-                  borderRadius: 3,
-                  background: wb.isToday ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-accent) 55%, transparent)',
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 11, opacity: 0.6, flex: 'none' }}>
-              {wb.totalCount > 0 ? `${wb.doneCount}/${wb.totalCount}` : '—'}
-            </span>
-          </div>
-        ))}
-      </div>
 
       {showModal && (
         <div className="dialog-backdrop">
@@ -408,32 +410,36 @@ export function MaqsadScreen({
             {modalStep === 'confirm' && (
               <>
                 <p className="dialog-body">{t.dailyAddConfirm}</p>
-                {planError && <p style={{ fontSize: 12.5, color: 'var(--color-accent-700)', margin: '0 0 10px' }}>{planError}</p>}
                 <div className="dialog-actions">
                   <button type="button" className="btn btn-secondary" disabled={busy} onClick={declineSplit}>
                     {t.no}
                   </button>
-                  <button type="button" className="btn btn-primary" disabled={busy} onClick={acceptSplit}>
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={goToBulk}>
                     {t.yes}
                   </button>
                 </div>
               </>
             )}
 
-            {modalStep === 'generating' && <p className="dialog-body">{t.planGenerating}</p>}
-
-            {modalStep === 'plan' && plan && (
+            {modalStep === 'bulk' && (
               <>
-                <p className="dialog-body" style={{ marginBottom: 10 }}>
-                  {t.planReadyTitle}
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflow: 'auto', marginBottom: 14 }}>
-                  {plan.map((step, i) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflow: 'auto', marginBottom: 14 }}>
+                  {bulkPlan.map((val, i) => (
                     <div key={i} style={{ border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '8px 10px' }}>
-                      <div style={{ fontSize: 10.5, opacity: 0.55, marginBottom: 3 }}>
-                        {modalDraft} {i + 1}/{plan.length}
+                      <div style={{ fontSize: 10.5, opacity: 0.55, marginBottom: 4 }}>
+                        {modalDraft} — {i + 1}/{bulkPlan.length}
                       </div>
-                      <div style={{ fontSize: 13 }}>{step}</div>
+                      <textarea
+                        className="input"
+                        value={val}
+                        onChange={(e) => {
+                          const next = [...bulkPlan];
+                          next[i] = e.target.value;
+                          setBulkPlan(next);
+                        }}
+                        placeholder={t.modalGoalPlaceholder}
+                        style={{ minHeight: 40, fontSize: 13, resize: 'vertical' }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -441,7 +447,7 @@ export function MaqsadScreen({
                   <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setModalStep('confirm')}>
                     {t.back}
                   </button>
-                  <button type="button" className="btn btn-primary" disabled={busy} onClick={confirmPlan}>
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={confirmBulk}>
                     {t.startPlan}
                   </button>
                 </div>
@@ -508,7 +514,7 @@ export function MaqsadScreen({
 
             {!historyLoading && historyItems.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflow: 'auto' }}>
-                {historyItems.map((item) => (
+                {historyItems.map((item, i) => (
                   <div
                     key={item.id}
                     className="qn-opt"
@@ -521,6 +527,7 @@ export function MaqsadScreen({
                       padding: '9px 11px',
                     }}
                   >
+                    <span style={{ fontSize: 12, opacity: 0.5, flex: 'none', minWidth: 14 }}>{i + 1}.</span>
                     <span
                       onClick={() => toggleHistoryItem(item)}
                       style={{
