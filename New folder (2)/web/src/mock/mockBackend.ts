@@ -220,14 +220,6 @@ export async function mockRequest<T>(method: string, path: string, data?: unknow
     return { goals: goals.map(serializeGoal) } as T;
   }
   const SPLIT: Record<string, { count: number; unit: string }> = { haftalik: { count: 7, unit: 'kun' }, oylik: { count: 30, unit: 'kun' }, yillik: { count: 12, unit: 'oy' } };
-  if (path === '/goals/plan' && method === 'POST') {
-    requireAuth();
-    const { text, duration } = (data as any) ?? {};
-    const sp = SPLIT[duration];
-    if (!sp) throw new MockApiError(400, 'invalid_duration');
-    const plan = Array.from({ length: sp.count }, (_, i) => `${text} — ${i + 1}-${sp.unit} uchun qadam`);
-    return { plan } as T;
-  }
   if (path === '/goals' && method === 'POST') {
     const { text, source } = (data as any) ?? {};
     const g: MockGoal = { id: uid(), text: String(text).trim(), done: false, source: source === 'ovoz' ? 'ovoz' : 'matn', recurring: false, current: null, total: null, unit: null, plan: null };
