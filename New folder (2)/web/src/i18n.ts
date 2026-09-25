@@ -64,7 +64,6 @@ const RAW = {
     historyTitle: 'Tarix',
     historyEmpty: "Bu kunda hech qanday maqsad bo'lmagan.",
     historyToday: 'Bugun',
-    historyEditHint: 'Tahrirlash uchun bosing',
     deleteGoal: "O'chirish",
 
     kasbTitle: "Kasb yo'nalishini toping",
@@ -166,7 +165,6 @@ const RAW = {
     historyTitle: 'История',
     historyEmpty: 'В этот день целей не было.',
     historyToday: 'Сегодня',
-    historyEditHint: 'Нажмите, чтобы изменить',
     deleteGoal: 'Удалить',
 
     kasbTitle: 'Найдите своё направление',
