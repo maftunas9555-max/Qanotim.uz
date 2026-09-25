@@ -94,6 +94,12 @@ textarea {
   background: var(--color-bg);
   position: relative;
   overflow: hidden;
+  /* Any transform makes this the containing block for `position: fixed`
+     descendants (per spec), so .dialog-backdrop below always covers the
+     full app card — not just however tall the current screen's content
+     happens to be — on both the fullscreen mobile layout and the
+     centered-card desktop layout. */
+  transform: translateZ(0);
 }
 @media (min-width: 560px) {
   .qn-app {
@@ -395,7 +401,7 @@ textarea.input {
 
 /* ── dialog ── */
 .dialog-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
