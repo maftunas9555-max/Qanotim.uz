@@ -2,7 +2,6 @@ import { Strings } from '../../i18n';
 import { User } from '../../api';
 import { Screen } from '../TabBar';
 import { formatLongDateWithWeekday } from '../../dateFmt';
-import { todaysQuote } from '../../content/quotes';
 
 function initials(name: string) {
   return name
@@ -74,7 +73,6 @@ export function HomeScreen({
   onNavigate: (s: Screen) => void;
 }) {
   const dateLabel = formatLongDateWithWeekday(new Date().toISOString(), user.lang);
-  const quote = todaysQuote();
 
   return (
     <div>
@@ -123,22 +121,10 @@ export function HomeScreen({
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 22 }}>
-        <div className="card-kicker">{t.dailySpark}</div>
-        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 17, fontStyle: 'italic', lineHeight: 1.35 }}>
-          "{user.lang === 'ru' ? quote.ru : quote.uz}"
-        </div>
-        <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 8 }}>— {quote.author}</div>
-      </div>
-
       {dailyPrompt && (
-        <div
-          className="card"
-          onClick={() => onNavigate('coaching')}
-          style={{ marginBottom: 22, borderColor: 'var(--color-accent)', cursor: 'pointer' }}
-        >
+        <div className="qn-spark-card" onClick={() => onNavigate('coaching')} style={{ marginBottom: 22 }}>
           <div className="card-kicker">{t.dailyQuestion}</div>
-          <div style={{ fontSize: 14.5, lineHeight: 1.45 }}>{dailyPrompt}</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 17, lineHeight: 1.4 }}>{dailyPrompt}</div>
         </div>
       )}
 
