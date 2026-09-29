@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Strings, Lang } from '../../i18n';
 import { Goal, api } from '../../api';
+import { WeekDay } from '../../App';
 import { BackHeader } from '../BackHeader';
 import { formatLongDateWithWeekday } from '../../dateFmt';
 
 type ModalStep = 'form' | 'confirm' | 'bulk';
+type HistoryView = 'week' | 'day';
 
 interface HistoryItem {
   id: string;
@@ -13,7 +15,7 @@ interface HistoryItem {
 }
 
 const DURATIONS = ['haftalik', 'oylik', 'yillik'] as const;
-const SPLIT_COUNT: Record<(typeof DURATIONS)[number], number> = { haftalik: 7, oylik: 30, yillik: 12 };
+const SPLIT_COUNT: Record<(typeof DURATIONS)[number], number> = { haftalik: 7, oylik: 30, yillik: 365 };
 
 const COUNTER_RE = / \(\d+\/\d+\)$/;
 function stripCounter(g: Goal): string {
@@ -30,11 +32,18 @@ function shiftDateKey(dateKey: string, deltaDays: number) {
   return d.toISOString().slice(0, 10);
 }
 
+function dayLabel(dateIso: string, t: Strings) {
+  const jsDay = new Date(dateIso).getDay(); // 0=Sun..6=Sat
+  const mondayFirst = (jsDay + 6) % 7; // 0=Mon..6=Sun
+  return t.weekdays[mondayFirst];
+}
+
 export function MaqsadScreen({
   t,
   lang,
   goals,
   goalsDoneN,
+  weekly,
   onBack,
   onGoalsChanged,
 }: {
@@ -42,6 +51,7 @@ export function MaqsadScreen({
   lang: Lang;
   goals: Goal[];
   goalsDoneN: number;
+  weekly: WeekDay[];
   onBack: () => void;
   onGoalsChanged: () => void;
 }) {
@@ -58,11 +68,10 @@ export function MaqsadScreen({
   const [goalEditText, setGoalEditText] = useState('');
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyView, setHistoryView] = useState<HistoryView>('week');
   const [historyDate, setHistoryDate] = useState('');
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
 
   async function addGoal() {
     if (!draft.trim() || busy) return;
@@ -135,10 +144,16 @@ export function MaqsadScreen({
     }
   }
 
+  // History is a read-only record of past days — the one exception is
+  // "yesterday", which can still be checked off the day after it happened
+  // (a single, one-time catch-up), same as before rollover existed. Any
+  // earlier day is locked; there's no free-form editing here any more.
+  const yesterdayKey = shiftDateKey(todayKey(), -1);
+
   async function loadHistory(date: string) {
     setHistoryDate(date);
+    setHistoryView('day');
     setHistoryLoading(true);
-    setEditingId(null);
     try {
       const { items } = await api.get<{ items: HistoryItem[] }>(`/goals/history/${date}`);
       setHistoryItems(items);
@@ -147,73 +162,29 @@ export function MaqsadScreen({
     }
   }
 
-  function openHistory(date?: string) {
+  function openHistory() {
     setHistoryOpen(true);
-    loadHistory(date || todayKey());
+    setHistoryView('week');
   }
 
   function closeHistory() {
     setHistoryOpen(false);
-    setEditingId(null);
-  }
-
-  function shiftHistory(deltaDays: number) {
-    const next = shiftDateKey(historyDate, deltaDays);
-    if (next > todayKey()) return;
-    loadHistory(next);
   }
 
   async function toggleHistoryItem(item: HistoryItem) {
+    if (historyDate !== yesterdayKey) return;
     const { item: updated } = await api.patch<{ item: HistoryItem }>(`/goals/history/${historyDate}/${item.id}`, {
       done: !item.done,
     });
     setHistoryItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)));
-    if (historyDate === todayKey()) onGoalsChanged();
-  }
-
-  function startEdit(item: HistoryItem) {
-    setEditingId(item.id);
-    setEditText(item.text);
-  }
-
-  async function commitEdit(item: HistoryItem) {
-    const text = editText.trim();
-    setEditingId(null);
-    if (!text || text === item.text) return;
-    const { item: updated } = await api.patch<{ item: HistoryItem }>(`/goals/history/${historyDate}/${item.id}`, { text });
-    setHistoryItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)));
-    if (historyDate === todayKey()) onGoalsChanged();
   }
 
   const isHistoryToday = historyDate === todayKey();
+  const canCheckHistoryDay = historyDate === yesterdayKey;
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <BackHeader t={t} onBack={onBack} />
-        <div
-          onClick={() => openHistory()}
-          aria-label={t.historyTitle}
-          title={t.historyTitle}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            border: '1px solid var(--color-divider)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            flex: 'none',
-            color: 'var(--color-accent-700)',
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3.5 2" />
-          </svg>
-        </div>
-      </div>
+      <BackHeader t={t} onBack={onBack} />
       <h2 style={{ fontSize: 22, marginBottom: 2 }}>{t.todayGoal}</h2>
       <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 14 }}>{t.today}</div>
 
@@ -223,6 +194,29 @@ export function MaqsadScreen({
           <span style={{ fontSize: 11, opacity: 0.55 }}>
             {goalsDoneN}/{goals.length}
           </span>
+          <div
+            onClick={openHistory}
+            aria-label={t.historyTitle}
+            title={t.historyTitle}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: '#fff',
+              border: '1.5px solid var(--color-divider)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flex: 'none',
+              color: 'var(--color-accent-700)',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3.5 2" />
+            </svg>
+          </div>
           <div
             onClick={openModal}
             aria-label={t.newGoal}
@@ -461,7 +455,16 @@ export function MaqsadScreen({
         <div className="dialog-backdrop">
           <div className="dialog">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <div className="dialog-title">{t.historyTitle}</div>
+              <div className="dialog-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {historyView === 'day' && (
+                  <span onClick={() => setHistoryView('week')} style={{ cursor: 'pointer', display: 'flex', opacity: 0.6 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 6l-6 6 6 6" />
+                    </svg>
+                  </span>
+                )}
+                {t.historyTitle}
+              </div>
               <div
                 onClick={closeHistory}
                 style={{ cursor: 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}
@@ -473,113 +476,103 @@ export function MaqsadScreen({
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0 14px' }}>
-              <div
-                onClick={() => shiftHistory(-1)}
-                aria-label="prev"
-                style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 6l-6 6 6 6" />
-                </svg>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 14, fontFamily: 'var(--font-heading)', fontWeight: 600 }}>
-                  {isHistoryToday ? t.historyToday : formatLongDateWithWeekday(historyDate, lang)}
-                </div>
-              </div>
-              <div
-                onClick={() => shiftHistory(1)}
-                aria-label="next"
-                style={{
-                  width: 30,
-                  height: 30,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: isHistoryToday ? 'default' : 'pointer',
-                  opacity: isHistoryToday ? 0.25 : 1,
-                  flex: 'none',
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </div>
-            </div>
-
-            {historyLoading && <p className="dialog-body">{t.loading}</p>}
-
-            {!historyLoading && historyItems.length === 0 && <p className="dialog-body">{t.historyEmpty}</p>}
-
-            {!historyLoading && historyItems.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflow: 'auto' }}>
-                {historyItems.map((item, i) => (
+            {historyView === 'week' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                {weekly.map((wb) => (
                   <div
-                    key={item.id}
+                    key={wb.date}
+                    onClick={() => loadHistory(wb.date)}
                     className="qn-opt"
                     style={{
                       display: 'flex',
-                      gap: 10,
                       alignItems: 'center',
+                      gap: 10,
                       border: '1px solid var(--color-divider)',
                       borderRadius: 'var(--radius-md)',
-                      padding: '9px 11px',
+                      padding: '9px 12px',
+                      opacity: wb.isToday ? 1 : 0.85,
+                      cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontSize: 12, opacity: 0.5, flex: 'none', minWidth: 14 }}>{i + 1}.</span>
-                    <span
-                      onClick={() => toggleHistoryItem(item)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 3,
-                        border: '1.5px solid var(--color-divider)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flex: 'none',
-                        cursor: 'pointer',
-                        background: item.done ? 'var(--color-accent)' : 'transparent',
-                      }}
-                    >
-                      {item.done && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M4 12l5 5L20 6" />
-                        </svg>
-                      )}
-                    </span>
-                    {editingId === item.id ? (
-                      <input
-                        autoFocus
-                        className="input"
-                        style={{ flex: 1, fontSize: 13, padding: '5px 8px' }}
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onBlur={() => commitEdit(item)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                          if (e.key === 'Escape') setEditingId(null);
+                    <span style={{ fontSize: 11.5, fontWeight: wb.isToday ? 600 : 400, width: 34, flex: 'none' }}>{dayLabel(wb.date, t)}</span>
+                    <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--color-divider)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${wb.pct}%`,
+                          borderRadius: 3,
+                          background: wb.isToday ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-accent) 55%, transparent)',
                         }}
                       />
-                    ) : (
-                      <span
-                        onClick={() => startEdit(item)}
-                        title={t.historyEditHint}
-                        style={{
-                          fontSize: 13.5,
-                          flex: 1,
-                          cursor: 'text',
-                          textDecoration: item.done ? 'line-through' : 'none',
-                          opacity: item.done ? 0.65 : 1,
-                        }}
-                      >
-                        {item.text}
-                      </span>
-                    )}
+                    </div>
+                    <span style={{ fontSize: 11, opacity: 0.6, flex: 'none' }}>{wb.totalCount > 0 ? `${wb.doneCount}/${wb.totalCount}` : '—'}</span>
                   </div>
                 ))}
               </div>
+            )}
+
+            {historyView === 'day' && (
+              <>
+                <div style={{ fontSize: 14, fontFamily: 'var(--font-heading)', fontWeight: 600, margin: '6px 0 12px' }}>
+                  {isHistoryToday ? t.historyToday : formatLongDateWithWeekday(historyDate, lang)}
+                </div>
+
+                {historyLoading && <p className="dialog-body">{t.loading}</p>}
+
+                {!historyLoading && historyItems.length === 0 && <p className="dialog-body">{t.historyEmpty}</p>}
+
+                {!historyLoading && historyItems.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflow: 'auto' }}>
+                    {historyItems.map((item, i) => (
+                      <div
+                        key={item.id}
+                        className="qn-opt"
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'center',
+                          border: '1px solid var(--color-divider)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '9px 11px',
+                        }}
+                      >
+                        <span style={{ fontSize: 12, opacity: 0.5, flex: 'none', minWidth: 14 }}>{i + 1}.</span>
+                        <span
+                          onClick={() => toggleHistoryItem(item)}
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 3,
+                            border: '1.5px solid var(--color-divider)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flex: 'none',
+                            cursor: canCheckHistoryDay ? 'pointer' : 'default',
+                            background: item.done ? 'var(--color-accent)' : 'transparent',
+                          }}
+                        >
+                          {item.done && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 12l5 5L20 6" />
+                            </svg>
+                          )}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 13.5,
+                            flex: 1,
+                            textDecoration: item.done ? 'line-through' : 'none',
+                            opacity: item.done ? 0.65 : 1,
+                          }}
+                        >
+                          {item.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
